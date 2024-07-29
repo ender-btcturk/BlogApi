@@ -2,6 +2,7 @@
 using Azure;
 using BlogApi.Data;
 using BlogApi.Data.Entities;
+using BlogApi.Mapping;
 using BlogApi.V1.Requests.Post;
 using BlogApi.V1.Requests.User;
 using BlogApi.V1.Responses.Post;
@@ -53,14 +54,7 @@ namespace BlogApi.V1.Controllers
 
             foreach (var post in posts)
             {
-                var response = new QueryPostsResponse
-                {
-                    Id = post.Id,
-                    Title = post.Title,
-                    Content = post.Content,
-                    CreatedAt = post.CreatedAt,
-                    AuthorId = post.AuthorId
-                };
+                var response = post.ToQueryPostsResponse();
                 results.Add(response);
             }
 
@@ -70,34 +64,18 @@ namespace BlogApi.V1.Controllers
         [HttpPost("")]
         [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(CreatePostResponse))]
         [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ProblemDetails))]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(ProblemDetails))]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(ProblemDetails))]
         public async Task<IActionResult> CreatePost([FromBody] CreatePostRequest request)
         {
 
-            var newPost = new Post
-            {
-                Title = request.Title,
-                Content = request.Content,
-                CreatedAt = request.CreatedAt,
-                AuthorId = request.AuthorId
-            };
+            Post newPost = request.ToEntity();
 
             await _blogDbContext.Posts.AddAsync(newPost);
             await _blogDbContext.SaveChangesAsync();
 
-            newPost = await _blogDbContext.Posts.FirstOrDefaultAsync(p => p.AuthorId == request.AuthorId);
-
-            CreatePostResponse response = new CreatePostResponse()
-            {
-                Id = newPost.Id,
-                Title = request.Title,
-                Content = request.Content,
-                CreatedAt = request.CreatedAt,
-                AuthorId = request.AuthorId
-            };
-
-            return Created(new Uri(response.Id.ToString(), UriKind.Relative), response);
+            return Created(new Uri(newPost.Id.ToString(), UriKind.Relative),
+                           newPost.ToCreatePostResponse());
         }
 
         [HttpGet("{id:int}")]
@@ -106,21 +84,14 @@ namespace BlogApi.V1.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetPost([FromRoute] int id)
         {
-            var post = await _blogDbContext.Posts.FindAsync(id);
+            Post post = await _blogDbContext.Posts.FindAsync(id);
 
             if (post == null)
             {
                 return NotFound();
             }
 
-            GetPostResponse response = new GetPostResponse()
-            {
-                Id = post.Id,
-                Title = post.Title,
-                Content = post.Content,
-                CreatedAt = post.CreatedAt,
-                AuthorId = post.AuthorId
-            };
+            GetPostResponse response = post.ToGetPostResponse();
 
             return Ok(response);
         }
@@ -132,40 +103,26 @@ namespace BlogApi.V1.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(ProblemDetails))]
         public async Task<IActionResult> UpdatePost([FromRoute] int id, [FromBody] UpdatePostRequest request)
         {
-            var existingPost = await _blogDbContext.Posts.FindAsync(id);
+            Post existingPost = await _blogDbContext.Posts.FindAsync(id);
 
             if (existingPost == null)
             {
-                existingPost = new Post()
-                {
-                    Title = request.Title,
-                    Content = request.Content,
-                    CreatedAt = request.CreatedAt,
-                    AuthorId = request.AuthorId
-                };
+                Post newPost = request.ToEntity();
 
-                await _blogDbContext.Posts.AddAsync(existingPost);
+                await _blogDbContext.Posts.AddAsync(newPost);
                 await _blogDbContext.SaveChangesAsync();
 
-                return Created(new Uri(existingPost.Id.ToString(), UriKind.Relative), existingPost);
+                return Created(new Uri(newPost.Id.ToString(), UriKind.Relative),
+                               newPost.ToUpdatePostResponse());
             }
 
-            existingPost.Id = id;
-            existingPost.Title = request.Title;
-            existingPost.Content = request.Content;
-            existingPost.CreatedAt = request.CreatedAt;
-            existingPost.AuthorId = request.AuthorId;
-
+            _blogDbContext.Posts
+                          .Entry(existingPost)
+                          .CurrentValues
+                          .SetValues(request.ToEntity(id));
             await _blogDbContext.SaveChangesAsync();
 
-            UpdatePostResponse response = new UpdatePostResponse()
-            {
-                Id= existingPost.Id,
-                Title = existingPost.Title,
-                Content = existingPost.Content,
-                CreatedAt = existingPost.CreatedAt,
-                AuthorId = existingPost.AuthorId
-            };
+            UpdatePostResponse response = existingPost.ToUpdatePostResponse();
 
             return Ok(response);
         }

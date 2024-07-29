@@ -1,6 +1,7 @@
 ﻿using Asp.Versioning;
 using BlogApi.Data;
 using BlogApi.Data.Entities;
+using BlogApi.Mapping;
 using BlogApi.V1.Requests.User;
 using BlogApi.V1.Responses.User;
 using Microsoft.AspNetCore.Http;
@@ -29,19 +30,10 @@ namespace BlogApi.V1.Controllers
         {
             List<QueryUsersResponse> results = new List<QueryUsersResponse>();
 
-            var users = await _blogDbContext.Users.ToListAsync();
-
-            foreach (var user in users)
-            {
-                var response = new QueryUsersResponse
-                {
-                    Id = user.Id,
-                    Name = user.Name,
-                    Surname = user.Surname,
-                    Email = user.Email
-                };
-                results.Add(response);
-            }
+            results = await _blogDbContext.Users
+                .Select(user => user.ToQueryUsersResponse())
+                .AsNoTracking()
+                .ToListAsync();
 
             return Ok(results);
         }
@@ -54,28 +46,14 @@ namespace BlogApi.V1.Controllers
         public async Task<IActionResult> CreateUser([FromBody] CreateUserRequest request)
         {
 
-            var newUser = new User()
-            {
-                Name = request.Name,
-                Surname = request.Surname,
-                Email = request.Email
-            };
+            User newUser = request.ToEntity();
 
             await _blogDbContext.Users.AddAsync(newUser);
             await _blogDbContext.SaveChangesAsync();
 
-            newUser = await _blogDbContext.Users.FirstOrDefaultAsync(
-                u => u.Email == request.Email);
 
-            CreateUserResponse response = new CreateUserResponse
-            {
-                Id = newUser.Id,
-                Name = newUser.Name,
-                Surname = newUser.Surname,
-                Email = newUser.Email
-            };
-
-            return Created(new Uri(response.Id.ToString(), UriKind.Relative), response);
+            return Created(new Uri(newUser.Id.ToString(), UriKind.Relative),
+                           newUser.ToCreateUserResponse());
         }
 
         [HttpGet("{id:int}")]
@@ -91,13 +69,7 @@ namespace BlogApi.V1.Controllers
                 return NotFound();
             }
 
-            GetUserResponse response = new GetUserResponse()
-            {
-                Id = user.Id,
-                Name = user.Name,
-                Surname = user.Surname,
-                Email = user.Email
-            };
+            GetUserResponse response = user.ToGetUserResponse();
 
             return Ok(response);
         }
@@ -113,34 +85,21 @@ namespace BlogApi.V1.Controllers
 
             if (existingUser == null)
             {
-                existingUser = new User
-                {
-                    Name = request.Name,
-                    Surname = request.Surname,
-                    Email = request.Email
+                User newUser = request.ToEntity();
 
-                };
-
-                await _blogDbContext.Users.AddAsync(existingUser);
+                await _blogDbContext.Users.AddAsync(newUser);
                 await _blogDbContext.SaveChangesAsync();
 
-                return Created(new Uri(existingUser.Id.ToString(), UriKind.Relative), existingUser);
+                return Created(new Uri(newUser.Id.ToString(), UriKind.Relative),
+                               newUser.ToUpdateUserResponse());
             }
 
-            existingUser.Id = id;
-            existingUser.Name = request.Name;
-            existingUser.Surname = request.Surname;
-            existingUser.Email = request.Email;
-
+            _blogDbContext.Entry(existingUser)
+                .CurrentValues
+                .SetValues(request.ToEntity(id));
             await _blogDbContext.SaveChangesAsync();
 
-            UpdateUserResponse response = new UpdateUserResponse()
-            {
-                Id = id,
-                Name = request.Name,
-                Surname = request.Surname,
-                Email = request.Email
-            };
+            UpdateUserResponse response = existingUser.ToUpdateUserResponse();
 
             return Ok(response);
         }

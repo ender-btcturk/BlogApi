@@ -1,6 +1,7 @@
 ﻿using Asp.Versioning;
 using BlogApi.Data;
 using BlogApi.Data.Entities;
+using BlogApi.Mapping;
 using BlogApi.V1.Requests.Comment;
 using BlogApi.V1.Requests.Post;
 using BlogApi.V1.Responses.Comment;
@@ -51,14 +52,7 @@ namespace BlogApi.V1.Controllers
 
             foreach (var comment in comments)
             {
-                var response = new QueryCommentsResponse
-                {
-                    Id = comment.Id,
-                    Content = comment.Content,
-                    CreatedAt = comment.CreatedAt,
-                    AuthorId = comment.AuthorId,
-                    PostId = comment.PostId
-                };
+                var response = comment.ToQueryCommentResponse();
                 results.Add(response);
             }
 
@@ -73,29 +67,13 @@ namespace BlogApi.V1.Controllers
         public async Task<IActionResult> CreateComment([FromBody] CreateCommentRequest request)
         {
 
-            var newComment = new Comment
-            {
-                Content = request.Content,
-                CreatedAt = request.CreatedAt,
-                AuthorId = request.AuthorId,
-                PostId = request.PostId
-            };
+            var newComment = request.ToEntity();
 
             await _blogDbContext.Comments.AddAsync(newComment);
             await _blogDbContext.SaveChangesAsync();
 
-            newComment = await _blogDbContext.Comments.FirstOrDefaultAsync(p => p.PostId == request.PostId);
-
-            CreateCommentResponse response = new CreateCommentResponse()
-            {
-                Id = newComment.Id,
-                Content = newComment.Content,
-                CreatedAt = newComment.CreatedAt,
-                AuthorId = newComment.AuthorId,
-                PostId = newComment.PostId
-            };
-
-            return Created(new Uri(response.Id.ToString(), UriKind.Relative), response);
+            return Created(new Uri(newComment.Id.ToString(), UriKind.Relative),
+                           newComment.ToCreateCommentResponse());
         }
 
         [HttpGet("{id:int}")]
@@ -104,21 +82,14 @@ namespace BlogApi.V1.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetComment([FromRoute] int id)
         {
-            var comment = await _blogDbContext.Comments.FindAsync(id);
+            Comment comment = await _blogDbContext.Comments.FindAsync(id);
 
             if (comment == null)
             {
                 return NotFound();
             }
 
-            GetCommentResponse response = new GetCommentResponse()
-            {
-                Id = comment.Id,
-                Content = comment.Content,
-                CreatedAt = comment.CreatedAt,
-                AuthorId = comment.AuthorId,
-                PostId = comment.PostId
-            };
+            GetCommentResponse response = comment.ToGetCommentResponse();
 
             return Ok(response);
         }
@@ -130,40 +101,26 @@ namespace BlogApi.V1.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(ProblemDetails))]
         public async Task<IActionResult> UpdateComment([FromRoute] int id, [FromBody] UpdateCommentRequest request)
         {
-            var existingComment = await _blogDbContext.Comments.FindAsync(id);
+            Comment existingComment = await _blogDbContext.Comments.FindAsync(id);
 
             if (existingComment == null)
             {
-                existingComment = new Comment()
-                {
-                    Content = request.Content,
-                    CreatedAt = request.CreatedAt,
-                    AuthorId = request.AuthorId,
-                    PostId = request.PostId
-                };
+                Comment newComment = request.ToEntity();
 
-                await _blogDbContext.Comments.AddAsync(existingComment);
+                await _blogDbContext.Comments.AddAsync(newComment);
                 await _blogDbContext.SaveChangesAsync();
 
-                return Created(new Uri(existingComment.Id.ToString(), UriKind.Relative), existingComment);
+                return Created(new Uri(newComment.Id.ToString(), UriKind.Relative),
+                               newComment.ToUpdateCommentResponse());
             }
 
-            existingComment.Id = id;
-            existingComment.Content = request.Content;
-            existingComment.CreatedAt = request.CreatedAt;
-            existingComment.AuthorId = request.AuthorId;
-            existingComment.PostId = request.PostId;
-
+            _blogDbContext.Comments
+                          .Entry(existingComment)
+                          .CurrentValues
+                          .SetValues(request.ToEntity(id));
             await _blogDbContext.SaveChangesAsync();
 
-            UpdateCommentResponse response = new UpdateCommentResponse()
-            {
-                Id = existingComment.Id,
-                Content = existingComment.Content,
-                CreatedAt = existingComment.CreatedAt,
-                AuthorId = existingComment.AuthorId,
-                PostId = existingComment.PostId
-            };
+            UpdateCommentResponse response = existingComment.ToUpdateCommentResponse();
 
             return Ok(response);
         }
