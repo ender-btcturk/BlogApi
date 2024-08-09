@@ -1,6 +1,7 @@
 ﻿using Asp.Versioning;
 using BlogApi.Data;
 using BlogApi.Data.Entities;
+using BlogApi.Interfaces;
 using BlogApi.Mapping;
 using BlogApi.V1.Requests.Comment;
 using BlogApi.V1.Requests.Post;
@@ -18,11 +19,11 @@ namespace BlogApi.V1.Controllers
     [ApiExplorerSettings(GroupName = "Comments")]
     public class CommentsV1Controller : ControllerBase
     {
-        private readonly BlogDbContext _blogDbContext;
+        private readonly ICommentRepository _commentRepository;
 
-        public CommentsV1Controller(BlogDbContext blogDbContext)
+        public CommentsV1Controller(ICommentRepository commentRepository)
         {
-            _blogDbContext = blogDbContext;
+            _commentRepository = commentRepository;
         }
 
         [HttpGet("")]
@@ -35,20 +36,7 @@ namespace BlogApi.V1.Controllers
         {
             List<QueryCommentsResponse> results = new List<QueryCommentsResponse>();
 
-            IQueryable<Comment> comments;
-
-            switch (sort)
-            {
-                case "desc":
-                    comments = _blogDbContext.Comments.OrderByDescending(p => p.CreatedAt);
-                    break;
-                case "asc":
-                    comments = _blogDbContext.Comments.OrderBy(p => p.CreatedAt);
-                    break;
-                default:
-                    comments = _blogDbContext.Comments;
-                    break;
-            }
+            List<Comment> comments = await _commentRepository.GetAllCommentsAsync(sort);
 
             foreach (var comment in comments)
             {
@@ -67,13 +55,12 @@ namespace BlogApi.V1.Controllers
         public async Task<IActionResult> CreateComment([FromBody] CreateCommentRequest request)
         {
 
-            var newComment = request.ToEntity();
+            Comment newComment = request.ToEntity();
 
-            await _blogDbContext.Comments.AddAsync(newComment);
-            await _blogDbContext.SaveChangesAsync();
+            await _commentRepository.CreateCommentAsync(newComment);
 
-            return Created(new Uri(newComment.Id.ToString(), UriKind.Relative),
-                           newComment.ToCreateCommentResponse());
+            return Created(new Uri(newComment.Id.ToString(), UriKind.Relative)
+                           ,newComment.ToCreateCommentResponse());
         }
 
         [HttpGet("{id:int}")]
@@ -82,7 +69,7 @@ namespace BlogApi.V1.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetComment([FromRoute] int id)
         {
-            Comment comment = await _blogDbContext.Comments.FindAsync(id);
+            Comment? comment = await _commentRepository.GetCommentByIdAsync(id);
 
             if (comment == null)
             {
@@ -101,24 +88,17 @@ namespace BlogApi.V1.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(ProblemDetails))]
         public async Task<IActionResult> UpdateComment([FromRoute] int id, [FromBody] UpdateCommentRequest request)
         {
-            Comment existingComment = await _blogDbContext.Comments.FindAsync(id);
+            Comment? existingComment = await _commentRepository.UpdateCommentAsync(request, id);
 
             if (existingComment == null)
             {
                 Comment newComment = request.ToEntity();
 
-                await _blogDbContext.Comments.AddAsync(newComment);
-                await _blogDbContext.SaveChangesAsync();
+                await _commentRepository.CreateCommentAsync(newComment);
 
-                return Created(new Uri(newComment.Id.ToString(), UriKind.Relative),
-                               newComment.ToUpdateCommentResponse());
+                return Created(new Uri(newComment.Id.ToString(), UriKind.Relative)
+                               ,newComment.ToUpdateCommentResponse());
             }
-
-            _blogDbContext.Comments
-                          .Entry(existingComment)
-                          .CurrentValues
-                          .SetValues(request.ToEntity(id));
-            await _blogDbContext.SaveChangesAsync();
 
             UpdateCommentResponse response = existingComment.ToUpdateCommentResponse();
 
@@ -131,14 +111,7 @@ namespace BlogApi.V1.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(ProblemDetails))]
         public async Task<IActionResult> DeleteComment([FromRoute] int id)
         {
-            var comment = await _blogDbContext.Comments.FindAsync(id);
-            if (comment == null)
-            {
-                return NoContent();
-            }
-
-            _blogDbContext.Comments.Remove(comment);
-            await _blogDbContext.SaveChangesAsync();
+            await _commentRepository.DeleteCommentAsync(id);
 
             return NoContent();
         }

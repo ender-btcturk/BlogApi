@@ -1,7 +1,10 @@
 using Asp.Versioning;
 using Asp.Versioning.ApiExplorer;
+using BlogApi;
 using BlogApi.Configuration;
 using BlogApi.Data;
+using BlogApi.Interfaces;
+using BlogApi.Repository;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -26,8 +29,10 @@ builder.Services.AddApiVersioning(options =>
         options.SubstituteApiVersionInUrl = true;
     });
 
-builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+builder.Services.AddControllers(options =>
+{
+    options.InputFormatters.Insert(0, MyJPIF.GetJsonPatchInputFormatter());
+});
 builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddSwaggerGen();
@@ -36,6 +41,10 @@ builder.Services.ConfigureOptions<ConfigureSwaggerOptions>();
 var connectionString = builder.Configuration.GetConnectionString("Default Connection");
 builder.Services.AddDbContext<BlogDbContext>(options => 
     options.UseSqlServer(connectionString));
+
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<ICommentRepository, CommentRepository>();
+builder.Services.AddScoped<IPostRepository, PostRepository>();
 
 var app = builder.Build();
 

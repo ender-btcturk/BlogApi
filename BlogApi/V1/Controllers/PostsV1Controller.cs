@@ -2,6 +2,7 @@
 using Azure;
 using BlogApi.Data;
 using BlogApi.Data.Entities;
+using BlogApi.Interfaces;
 using BlogApi.Mapping;
 using BlogApi.V1.Requests.Post;
 using BlogApi.V1.Requests.User;
@@ -21,10 +22,10 @@ namespace BlogApi.V1.Controllers
     public class PostsV1Controller : ControllerBase
     {
 
-        private readonly BlogDbContext _blogDbContext;
-        public PostsV1Controller(BlogDbContext blogDbContext)
+        private readonly IPostRepository _postRepository;
+        public PostsV1Controller(IPostRepository postRepository)
         {
-            _blogDbContext = blogDbContext;
+            _postRepository = postRepository;
         }
 
         [HttpGet("")]
@@ -37,20 +38,7 @@ namespace BlogApi.V1.Controllers
         {
             List<QueryPostsResponse> results = new List<QueryPostsResponse>();
 
-            IQueryable<Post> posts;
-
-            switch(sort)
-            {
-                case "desc":
-                    posts = _blogDbContext.Posts.OrderByDescending(p => p.CreatedAt);
-                    break;
-                case "asc":
-                    posts = _blogDbContext.Posts.OrderBy(p => p.CreatedAt);
-                    break;
-                default:
-                    posts = _blogDbContext.Posts;
-                    break;
-            }
+            List<Post> posts = await _postRepository.GetAllPostsAsync(sort);
 
             foreach (var post in posts)
             {
@@ -71,11 +59,10 @@ namespace BlogApi.V1.Controllers
 
             Post newPost = request.ToEntity();
 
-            await _blogDbContext.Posts.AddAsync(newPost);
-            await _blogDbContext.SaveChangesAsync();
+            await _postRepository.CreatePostAsync(newPost);
 
-            return Created(new Uri(newPost.Id.ToString(), UriKind.Relative),
-                           newPost.ToCreatePostResponse());
+            return Created(new Uri(newPost.Id.ToString(), UriKind.Relative)
+                           ,newPost.ToCreatePostResponse());
         }
 
         [HttpGet("{id:int}")]
@@ -84,7 +71,7 @@ namespace BlogApi.V1.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetPost([FromRoute] int id)
         {
-            Post post = await _blogDbContext.Posts.FindAsync(id);
+            Post? post = await _postRepository.GetPostByIdAsync(id);
 
             if (post == null)
             {
@@ -103,24 +90,17 @@ namespace BlogApi.V1.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(ProblemDetails))]
         public async Task<IActionResult> UpdatePost([FromRoute] int id, [FromBody] UpdatePostRequest request)
         {
-            Post existingPost = await _blogDbContext.Posts.FindAsync(id);
+            Post? existingPost = await _postRepository.UpdatePostAsync(request, id);
 
             if (existingPost == null)
             {
                 Post newPost = request.ToEntity();
 
-                await _blogDbContext.Posts.AddAsync(newPost);
-                await _blogDbContext.SaveChangesAsync();
+                await _postRepository.CreatePostAsync(newPost);
 
-                return Created(new Uri(newPost.Id.ToString(), UriKind.Relative),
-                               newPost.ToUpdatePostResponse());
+                return Created(new Uri(newPost.Id.ToString(), UriKind.Relative)
+                               ,newPost.ToUpdatePostResponse());
             }
-
-            _blogDbContext.Posts
-                          .Entry(existingPost)
-                          .CurrentValues
-                          .SetValues(request.ToEntity(id));
-            await _blogDbContext.SaveChangesAsync();
 
             UpdatePostResponse response = existingPost.ToUpdatePostResponse();
 
@@ -133,14 +113,7 @@ namespace BlogApi.V1.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(ProblemDetails))]
         public async Task<IActionResult> DeletePost([FromRoute] int id)
         {
-            var post = await _blogDbContext.Posts.FindAsync(id);
-            if (post == null)
-            {
-                return NoContent();
-            }
-
-            _blogDbContext.Posts.Remove(post);
-            await _blogDbContext.SaveChangesAsync();
+            await _postRepository.DeletePostAsync(id);
 
             return NoContent();
         }

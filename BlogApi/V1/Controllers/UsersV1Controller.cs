@@ -1,11 +1,13 @@
 ﻿using Asp.Versioning;
 using BlogApi.Data;
 using BlogApi.Data.Entities;
+using BlogApi.Interfaces;
 using BlogApi.Mapping;
 using BlogApi.V1.Requests.User;
 using BlogApi.V1.Responses.User;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,10 +19,10 @@ namespace BlogApi.V1.Controllers
     [ApiExplorerSettings(GroupName = "Users")]
     public class UsersV1Controller : ControllerBase
     {
-        private readonly BlogDbContext _blogDbContext;
-        public UsersV1Controller(BlogDbContext blogDbContext)
+        private readonly IUserRepository _userRepository;
+        public UsersV1Controller(IUserRepository userRepository)
         {
-            _blogDbContext = blogDbContext;
+            _userRepository = userRepository;
         }
 
         [HttpGet("")]
@@ -30,10 +32,13 @@ namespace BlogApi.V1.Controllers
         {
             List<QueryUsersResponse> results = new List<QueryUsersResponse>();
 
-            results = await _blogDbContext.Users
-                .Select(user => user.ToQueryUsersResponse())
-                .AsNoTracking()
-                .ToListAsync();
+            List<User> users = await _userRepository.GetAllUsersAsync();
+
+            foreach (var user in users)
+            {
+                var response = user.ToQueryUsersResponse();
+                results.Add(response);
+            }
 
             return Ok(results);
         }
@@ -48,12 +53,10 @@ namespace BlogApi.V1.Controllers
 
             User newUser = request.ToEntity();
 
-            await _blogDbContext.Users.AddAsync(newUser);
-            await _blogDbContext.SaveChangesAsync();
+            await _userRepository.CreateUserAsync(newUser);
 
-
-            return Created(new Uri(newUser.Id.ToString(), UriKind.Relative),
-                           newUser.ToCreateUserResponse());
+            return Created(new Uri(newUser.Id.ToString(), UriKind.Relative)
+                           ,newUser.ToCreateUserResponse());
         }
 
         [HttpGet("{id:int}")]
@@ -62,7 +65,7 @@ namespace BlogApi.V1.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetUser([FromRoute] int id)
         {
-            var user = await _blogDbContext.Users.FindAsync(id);
+            User? user = await _userRepository.GetUserByIdAsync(id);
 
             if (user == null)
             {
@@ -81,28 +84,69 @@ namespace BlogApi.V1.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(ProblemDetails))]
         public async Task<IActionResult> UpdateUser([FromRoute] int id, [FromBody] UpdateUserRequest request)
         {
-            var existingUser = await _blogDbContext.Users.FindAsync(id);
+            User? existingUser = await _userRepository.UpdateUserAsync(request, id);
 
             if (existingUser == null)
             {
                 User newUser = request.ToEntity();
 
-                await _blogDbContext.Users.AddAsync(newUser);
-                await _blogDbContext.SaveChangesAsync();
+                await _userRepository.CreateUserAsync(newUser);
 
                 return Created(new Uri(newUser.Id.ToString(), UriKind.Relative),
                                newUser.ToUpdateUserResponse());
             }
 
-            _blogDbContext.Entry(existingUser)
-                .CurrentValues
-                .SetValues(request.ToEntity(id));
-            await _blogDbContext.SaveChangesAsync();
-
             UpdateUserResponse response = existingUser.ToUpdateUserResponse();
 
             return Ok(response);
         }
+
+        /*
+        [HttpPatch("{id}")]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ProblemDetails))]
+        [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ProblemDetails))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PatchUserResponse))]
+        public async Task<IActionResult> PatchUser([FromRoute] int id, [FromBody] JsonPatchDocument<PatchUserRequest> request)
+        {
+            User? existingUser = await _blogDbContext.Users.FindAsync(id);
+
+            if (existingUser == null)
+            {
+                return NotFound();
+            }
+
+            var patchedUser = new PatchUserRequest()
+            {
+                Id = id,
+                Name = existingUser.Name,
+                Surname = existingUser.Surname,
+                Email = existingUser.Email
+            };
+
+            request.ApplyTo(patchedUser, ModelState);
+
+            if(!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            existingUser.Name = patchedUser.Name;
+            existingUser.Surname = patchedUser.Surname;
+            existingUser.Email = patchedUser.Email;
+            await _blogDbContext.SaveChangesAsync();
+
+            var response = new PatchUserResponse
+            {
+                Id = existingUser.Id,
+                Name = existingUser.Name,
+                Surname = existingUser.Surname,
+                Email = existingUser.Email
+            };
+
+            return Ok(response);
+        }
+        */
+
 
         [HttpDelete("{id:int}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -110,14 +154,7 @@ namespace BlogApi.V1.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(ProblemDetails))]
         public async Task<IActionResult> DeleteUser([FromRoute] int id)
         {
-            var user = await _blogDbContext.Users.FindAsync(id);
-            if(user == null)
-            {
-                return NoContent();
-            }
-
-            _blogDbContext.Users.Remove(user);
-            await _blogDbContext.SaveChangesAsync();
+            await _userRepository.DeleteUserAsync(id);
 
             return NoContent();
         }
