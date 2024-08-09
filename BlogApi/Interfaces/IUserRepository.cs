@@ -1,5 +1,6 @@
 ﻿using BlogApi.Data.Entities;
 using BlogApi.V1.Requests.User;
+using Microsoft.AspNetCore.JsonPatch;
 
 namespace BlogApi.Interfaces
 {
@@ -10,5 +11,6 @@ namespace BlogApi.Interfaces
         public Task<User?> GetUserByIdAsync(int id);
         public Task<User?> UpdateUserAsync(UpdateUserRequest request, int id);
         public Task<User?> DeleteUserAsync(int id);
+        public Task SaveChangesAsync();
     }
 }

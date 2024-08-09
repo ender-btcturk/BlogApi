@@ -10,5 +10,6 @@ namespace BlogApi.Interfaces
         public Task<Post?> GetPostByIdAsync(int id);
         public Task<Post?> UpdatePostAsync(UpdatePostRequest request, int id);
         public Task<Post?> DeletePostAsync(int id);
+        public Task SaveChangesAsync();
     }
 }

@@ -3,6 +3,7 @@ using BlogApi.V1.Controllers;
 using BlogApi.V1.Requests.Post;
 using FakeItEasy;
 using FluentAssertions;
+using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Collections.Generic;
@@ -65,6 +66,19 @@ namespace BlogApi.Tests.Controller
             var controller = new PostsV1Controller(_postRepository);
 
             var result = await controller.UpdatePost(id, request);
+
+            result.Should().NotBeNull();
+            result.Should().BeOfType(typeof(OkObjectResult));
+        }
+
+        [Fact]
+        public async void PostsV1Controller_PatchPost_ReturnOK()
+        {
+            int id = 1;
+            var request = A.Fake<JsonPatchDocument<PatchPostRequest>>();
+            var controller = new PostsV1Controller(_postRepository);
+
+            var result = await controller.PatchPost(id, request);
 
             result.Should().NotBeNull();
             result.Should().BeOfType(typeof(OkObjectResult));

@@ -3,11 +3,13 @@ using BlogApi.Data;
 using BlogApi.Data.Entities;
 using BlogApi.Interfaces;
 using BlogApi.Mapping;
+using BlogApi.Repository;
 using BlogApi.V1.Requests.Comment;
 using BlogApi.V1.Requests.Post;
 using BlogApi.V1.Responses.Comment;
 using BlogApi.V1.Responses.Post;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -101,6 +103,51 @@ namespace BlogApi.V1.Controllers
             }
 
             UpdateCommentResponse response = existingComment.ToUpdateCommentResponse();
+
+            return Ok(response);
+        }
+
+        [HttpPatch("{id}")]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ProblemDetails))]
+        [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ProblemDetails))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PatchCommentResponse))]
+        public async Task<IActionResult> PatchComment([FromRoute] int id, [FromBody] JsonPatchDocument<PatchCommentRequest> request)
+        {
+            Comment? existingComment = await _commentRepository.GetCommentByIdAsync(id);
+            if (existingComment == null)
+            {
+                return NotFound();
+            }
+
+            var patchedComment = new PatchCommentRequest
+            {
+                Content = existingComment.Content,
+                CreatedAt = existingComment.CreatedAt,
+                AuthorId = existingComment.AuthorId,
+                PostId = existingComment.PostId
+            };
+
+            request.ApplyTo(patchedComment, ModelState);
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            existingComment.Content = patchedComment.Content;
+            existingComment.CreatedAt = patchedComment.CreatedAt;
+            existingComment.AuthorId = patchedComment.AuthorId;
+            existingComment.PostId = patchedComment.PostId;
+            await _commentRepository.SaveChangesAsync();
+
+            var response = new PatchCommentResponse
+            {
+                Id = existingComment.Id,
+                Content = existingComment.Content,
+                CreatedAt = existingComment.CreatedAt,
+                AuthorId = existingComment.AuthorId,
+                PostId = existingComment.PostId
+            };
 
             return Ok(response);
         }

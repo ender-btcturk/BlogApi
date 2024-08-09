@@ -5,10 +5,8 @@ using BlogApi.Data.Entities;
 using BlogApi.Interfaces;
 using BlogApi.Mapping;
 using BlogApi.V1.Requests.Post;
-using BlogApi.V1.Requests.User;
 using BlogApi.V1.Responses.Post;
-using BlogApi.V1.Responses.User;
-using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -103,6 +101,51 @@ namespace BlogApi.V1.Controllers
             }
 
             UpdatePostResponse response = existingPost.ToUpdatePostResponse();
+
+            return Ok(response);
+        }
+
+        [HttpPatch("{id}")]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ProblemDetails))]
+        [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ProblemDetails))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PatchPostResponse))]
+        public async Task<IActionResult> PatchPost([FromRoute] int id, [FromBody] JsonPatchDocument<PatchPostRequest> request)
+        {
+            Post? existingPost = await _postRepository.GetPostByIdAsync(id);
+            if (existingPost == null)
+            {
+                return NotFound();
+            }
+
+            var patchedPost = new PatchPostRequest
+            {
+                Title = existingPost.Title,
+                Content = existingPost.Content,
+                CreatedAt = existingPost.CreatedAt,
+                AuthorId = existingPost.AuthorId
+            };
+
+            request.ApplyTo(patchedPost, ModelState);
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            existingPost.Title = patchedPost.Title;
+            existingPost.Content = patchedPost.Content;
+            existingPost.CreatedAt = patchedPost.CreatedAt;
+            existingPost.AuthorId = patchedPost.AuthorId;
+            _postRepository.SaveChangesAsync();
+
+            var response = new PatchPostResponse
+            {
+                Id = existingPost.Id,
+                Title = existingPost.Title,
+                Content = existingPost.Content,
+                CreatedAt = existingPost.CreatedAt,
+                AuthorId = existingPost.AuthorId
+            };
 
             return Ok(response);
         }

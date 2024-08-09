@@ -7,6 +7,7 @@ using BlogApi.V1.Responses.User;
 using FakeItEasy;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -69,6 +70,19 @@ namespace BlogApi.Tests.Controller
             var controller = new UsersV1Controller(_userRepository);
 
             var result = await controller.UpdateUser(id, request);
+
+            result.Should().NotBeNull();
+            result.Should().BeOfType(typeof(OkObjectResult));
+        }
+
+        [Fact]
+        public async void UsersV1Controller_PatchUser_ReturnOK()
+        {
+            int id = 1;
+            var request = A.Fake<JsonPatchDocument<PatchUserRequest>>();
+            var controller = new UsersV1Controller(_userRepository);
+
+            var result = await controller.PatchUser(id, request);
 
             result.Should().NotBeNull();
             result.Should().BeOfType(typeof(OkObjectResult));

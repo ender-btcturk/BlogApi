@@ -54,6 +54,11 @@ namespace BlogApi.Repository
             return await _context.Posts.FindAsync(id);
         }
 
+        public async Task SaveChangesAsync()
+        {
+            await _context.SaveChangesAsync();
+        }
+
         public async Task<Post?> UpdatePostAsync(UpdatePostRequest request, int id)
         {
             Post? existingPost = await _context.Posts.FindAsync(id);

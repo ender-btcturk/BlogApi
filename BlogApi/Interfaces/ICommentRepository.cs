@@ -10,5 +10,6 @@ namespace BlogApi.Interfaces
         public Task<Comment?> GetCommentByIdAsync(int id);
         public Task<Comment?> UpdateCommentAsync(UpdateCommentRequest request, int id);
         public Task<Comment?> DeleteCommentAsync(int id);
+        public Task SaveChangesAsync();
     }
 }

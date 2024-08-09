@@ -61,5 +61,10 @@ namespace BlogApi.Repository
 
             return existingUser;
         }
+
+        public async Task SaveChangesAsync()
+        {
+            await _context.SaveChangesAsync();
+        }
     }
 }

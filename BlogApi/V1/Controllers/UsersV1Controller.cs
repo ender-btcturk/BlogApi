@@ -1,12 +1,9 @@
 ﻿using Asp.Versioning;
-using BlogApi.Data;
 using BlogApi.Data.Entities;
 using BlogApi.Interfaces;
 using BlogApi.Mapping;
 using BlogApi.V1.Requests.User;
 using BlogApi.V1.Responses.User;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -101,14 +98,14 @@ namespace BlogApi.V1.Controllers
             return Ok(response);
         }
 
-        /*
+        
         [HttpPatch("{id}")]
         [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(ProblemDetails))]
         [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ProblemDetails))]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PatchUserResponse))]
         public async Task<IActionResult> PatchUser([FromRoute] int id, [FromBody] JsonPatchDocument<PatchUserRequest> request)
         {
-            User? existingUser = await _blogDbContext.Users.FindAsync(id);
+            User? existingUser = await _userRepository.GetUserByIdAsync(id);
 
             if (existingUser == null)
             {
@@ -133,7 +130,7 @@ namespace BlogApi.V1.Controllers
             existingUser.Name = patchedUser.Name;
             existingUser.Surname = patchedUser.Surname;
             existingUser.Email = patchedUser.Email;
-            await _blogDbContext.SaveChangesAsync();
+            await _userRepository.SaveChangesAsync();
 
             var response = new PatchUserResponse
             {
@@ -145,7 +142,7 @@ namespace BlogApi.V1.Controllers
 
             return Ok(response);
         }
-        */
+        
 
 
         [HttpDelete("{id:int}")]

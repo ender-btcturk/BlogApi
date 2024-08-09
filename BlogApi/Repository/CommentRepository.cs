@@ -55,6 +55,11 @@ namespace BlogApi.Repository
             return await _context.Comments.FindAsync(id);
         }
 
+        public async Task SaveChangesAsync()
+        {
+            await _context.SaveChangesAsync();
+        }
+
         public async Task<Comment?> UpdateCommentAsync(UpdateCommentRequest request, int id)
         {
             Comment? existingComment = await _context.Comments.FindAsync(id);
