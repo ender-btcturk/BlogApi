@@ -11,7 +11,13 @@
 ---*Post*  
 ---*User*  
 --BlogDbContext  
+-**Interfaces**  
+--ICommentRepository  
+--IPostRepository  
+--IUserRepository  
+-**Mapping**  
 -**Migrations**  
+-**Repository**  
 -**V1**  
 --Controllers  
 ---*CommentsV1Controller*  
